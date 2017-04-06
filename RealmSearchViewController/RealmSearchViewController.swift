@@ -1,9 +1,7 @@
 //
 //  RealmSearchViewController.swift
-//  RealmSearchViewControllerExample
 //
-//  Created by Adam Fish on 10/2/15.
-//  Copyright © 2015 Adam Fish. All rights reserved.
+//  Created by Allan Ho on 10/2/15.
 //
 
 import UIKit
@@ -298,29 +296,39 @@ open class RealmSearchViewController: UITableViewController, RealmSearchResultsD
         }
     }
     
+    fileprivate func createPredicate(left: String, right: String) -> NSComparisonPredicate? {
+        let leftExpression = NSExpression(forKeyPath: left)
+        
+        let rightExpression = NSExpression(forConstantValue: right)
+        
+        let operatorType = self.useContainsSearch ? NSComparisonPredicate.Operator.contains : NSComparisonPredicate.Operator.beginsWith
+        
+        let options = self.caseInsensitiveSearch ? NSComparisonPredicate.Options.caseInsensitive : NSComparisonPredicate.Options(rawValue: 0)
+        
+        return NSComparisonPredicate(leftExpression: leftExpression, rightExpression: rightExpression, modifier: NSComparisonPredicate.Modifier.direct, type: operatorType, options: options)
+    }
+    
     fileprivate func searchPredicate(_ text: String?) -> NSPredicate? {
         if (text != "" &&  text != nil) {
             
-            let leftExpression = NSExpression(forKeyPath: self.searchPropertyKeyPath!)
             
-            let rightExpression = NSExpression(forConstantValue: text)
-            
-            let operatorType = self.useContainsSearch ? NSComparisonPredicate.Operator.contains : NSComparisonPredicate.Operator.beginsWith
-            
-            let options = self.caseInsensitiveSearch ? NSComparisonPredicate.Options.caseInsensitive : NSComparisonPredicate.Options(rawValue: 0)
-            
-            let filterPredicate = NSComparisonPredicate(leftExpression: leftExpression, rightExpression: rightExpression, modifier: NSComparisonPredicate.Modifier.direct, type: operatorType, options: options)
-            
-            if (self.basePredicate != nil) {
-                
-                let compoundPredicate = NSCompoundPredicate(andPredicateWithSubpredicates: [self.basePredicate!, filterPredicate])
-                
-                return compoundPredicate
+            var filterPredicates = [NSPredicate]()
+            var fieldPredicates = [NSPredicate]()
+            let searchFields = ["title", "content"]
+            if let searchStrings = text?.components(separatedBy: " ").filter({$0 != " " && $0 != ""}) {
+                for field in searchFields {
+                    filterPredicates = [NSPredicate]()
+                    for searchString in searchStrings {
+                        
+                        if let filterPredicate = createPredicate(left: field, right: searchString){
+                            filterPredicates.append(filterPredicate)
+                        }
+                    }
+                    fieldPredicates.append(NSCompoundPredicate(andPredicateWithSubpredicates: filterPredicates))
+                }
+                return NSCompoundPredicate(orPredicateWithSubpredicates: fieldPredicates)
             }
-            
-            return filterPredicate
         }
-        
         return self.basePredicate
     }
     
@@ -336,7 +344,7 @@ open class RealmSearchViewController: UITableViewController, RealmSearchResultsD
             
             if (sortPropertyKey != nil) {
                 
-                let sort = RLMSortDescriptor(keyPath: sortPropertyKey!, ascending: sortAscending)
+                let sort = RLMSortDescriptor(property: sortPropertyKey!, ascending: sortAscending)
                 
                 results = results?.sortedResults(using: [sort])
             }
